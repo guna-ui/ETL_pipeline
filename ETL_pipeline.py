@@ -66,6 +66,6 @@ data=read_file.read_csv()
 transformer=Transform_csv('sales_data.csv')
 final_data = transformer.transform_data(data)
 
-print(final_data)
+
 
    
