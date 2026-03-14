@@ -1,5 +1,6 @@
 import csv
 import logging
+import sqlite3
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,22 +50,56 @@ class Transform_csv(Basic_Pipeline):
                     'quantity': quantity,
                     'unit_price': unit_price,
                     'original_total': float(row['total_amount']),
-                    'calculated_total': round(calculated_total, 2)
+                    'calculated_total': round(calculated_total, 2),
+                    'txn_date':row['transaction_date'],
+                    'location':row['store_location']
             })
           except (ValueError,KeyError) as e:
               logging.warning(f"Skipping row due to error :{e}")
         logging.info("Transformation successful")
         return data_r
-        
 
-
-            
-        
+class DatabaseConn(Basic_Pipeline):
+     def __init__(self, data):
+         self.data=data
+     def table_data(self):
+         with sqlite3.connect('sales.db') as f:
+            try:
+                data_r=[]
+                cursor=f.cursor()
+                cursor.execute("""
+                        Create table if not exists sales(
+                                ID  varchar(200) Primary key ,
+                                CUSTOMERID varchar(200) NOT NULL,
+                                PRODNAME TEXT NOT NULL,
+                                CATEGORY TEXT NOT NULL,
+                                QUANTITY REAL NOT NULL,
+                                UNITPRICE REAL NOT NULL,
+                                TOTALAMT REAL NOT NULL,
+                                CALAMT   REAL NOT NULL,
+                                TXN_DATE DATETIME NOT NULL,
+                                LOCATION TEXT NOT NULL
+                                )
+                                """)
+                logging.info("Table is created successfully")
+                for row in self.data:
+                    data_r.append(row)
+                sql="""insert into sales(ID,CUSTOMERID,PRODNAME,CATEGORY,QUANTITY,UNITPRICE,TOTALAMT,CALAMT,TXN_DATE,LOCATION)
+                    values(:id, :customer_id, :product_name, :category, :quantity, :unit_price, :original_total, :calculated_total,:txn_date,:location) """
+                cursor.executemany(sql,data_r)
+                print(f"insert the records of the count:{cursor.rowcount}")
+            except Exception as e:
+                logging.warning(f"Error while connecting to db:{e}")
+                f.rollback()
 
 read_file=Read_file_class('sales_data.csv')
-data=read_file.read_csv()
 transformer=Transform_csv('sales_data.csv')
+
+data=read_file.read_csv()
 final_data = transformer.transform_data(data)
+database=DatabaseConn(final_data)
+database.table_data()
+
 
 
 
